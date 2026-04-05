@@ -4,21 +4,28 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Grid from '../components/Grid';
 import {
   createInitialGrid, randomTarget, randomNumber,
-  isAdjacentToSelection, applyGravity,
+  isAdjacentToSelection, applyGravity, computeFallingOffsets,
 } from '../utils/gameLogic';
 import { COLORS, GRID_ROWS, GRID_COLS } from '../utils/constants';
 
-const SPAWN_INTERVAL = 5000;
-const FALL_STEP = 250;
+const SPAWN_INTERVAL  = 5000; // ms — yeni blok düşmeden önceki bekleme
+const FALL_STEP       = 250;  // ms — bloğun her satır için düşme süresi
+const EXPLODE_DURATION = 220; // ms — patlama animasyonu süresi + küçük tampon
+const GRAVITY_DURATION = 350; // ms — yerçekimi animasyonu süresi + küçük tampon
 
 export default function GameScreen() {
-  const [grid, setGrid] = useState(() => createInitialGrid());
-  const [target, setTarget] = useState(() => randomTarget());
-  const [score] = useState(0);
+  const [grid, setGrid]               = useState(() => createInitialGrid());
+  const [target, setTarget]           = useState(() => randomTarget());
+  const [score]                       = useState(0);
   const [fallingBlock, setFallingBlock] = useState(null);
   const [selectedCells, setSelectedCells] = useState([]);
-  const [wrongCount, setWrongCount] = useState(0);
-  const [message, setMessage] = useState(null);
+  const [wrongCount, setWrongCount]   = useState(0);
+  const [message, setMessage]         = useState(null);
+
+  // Animasyon state'leri
+  const [isAnimating, setIsAnimating]       = useState(false);       // kullanıcı inputunu engelle
+  const [explodingCells, setExplodingCells] = useState(new Set());   // Set<"satır-sütun">
+  const [fallingOffsets, setFallingOffsets] = useState(new Map());   // Map<"satır-sütun", satırSayısı>
 
   // Mesajı 2 saniye sonra temizle
   useEffect(() => {
@@ -59,7 +66,8 @@ export default function GameScreen() {
   }, [fallingBlock, grid]);
 
   const handleCellPress = useCallback((row, col) => {
-    if (grid[row][col] === null) return;
+    // Animasyon sırasında veya boş hücreye dokunulursa yoksay
+    if (isAnimating || grid[row][col] === null) return;
 
     const existingIdx = selectedCells.findIndex(c => c.row === row && c.col === col);
     if (existingIdx !== -1) {
@@ -81,31 +89,60 @@ export default function GameScreen() {
     }
 
     setSelectedCells(prev => [...prev, { row, col }]);
-  }, [grid, selectedCells]);
+  }, [grid, selectedCells, isAnimating]);
 
   const handleConfirm = useCallback(() => {
-    if (selectedCells.length < 2) return;
+    if (selectedCells.length < 2 || isAnimating) return;
 
     const total = selectedCells.reduce((sum, { row, col }) => sum + grid[row][col], 0);
 
     if (total === target) {
-      setGrid(prev => {
-        let next = prev.map(r => [...r]);
-        selectedCells.forEach(({ row, col }) => { next[row][col] = null; });
-        next = applyGravity(next);
-        return next;
-      });
-      setTarget(randomTarget());
-      setMessage('Doğru! ✓');
+      // --- DOĞRU SEÇİM: animasyon sırası başlıyor ---
+      setIsAnimating(true);
+      setSelectedCells([]);
+
+      // 1. Adım: seçili hücreleri "patlıyor" olarak işaretle (grid'den henüz silme)
+      const explodingSet = new Set(selectedCells.map(({ row, col }) => `${row}-${col}`));
+      setExplodingCells(explodingSet);
+
+      // 2. Adım: patlama bittikten sonra (200ms) yerçekimini uygula
+      setTimeout(() => {
+        // Patlayan hücrelerin silindiği ara grid
+        const preGravityGrid = grid.map(r => [...r]);
+        selectedCells.forEach(({ row, col }) => { preGravityGrid[row][col] = null; });
+
+        // Yerçekimi uygulanmış nihai grid
+        const postGravityGrid = applyGravity(preGravityGrid);
+
+        // Her bloğun kaç satır düştüğünü hesapla
+        const offsets = computeFallingOffsets(preGravityGrid, postGravityGrid);
+
+        setExplodingCells(new Set());  // patlamayı bitir
+        setFallingOffsets(offsets);    // düşme animasyonunu başlat
+        setGrid(postGravityGrid);      // grid'i güncelle
+        setTarget(randomTarget());
+        setMessage('Doğru! ✓');
+
+        // 3. Adım: yerçekimi animasyonu bittikten sonra (300ms) her şeyi temizle
+        setTimeout(() => {
+          setFallingOffsets(new Map());
+          setIsAnimating(false);
+        }, GRAVITY_DURATION);
+
+      }, EXPLODE_DURATION);
+
     } else {
+      // Yanlış seçim: animasyon yok, sadece hata say
       setWrongCount(prev => prev + 1);
       setMessage('Yanlış! ✗');
+      setSelectedCells([]);
     }
+  }, [selectedCells, grid, target, isAnimating]);
 
+  const handleClear = useCallback(() => {
+    if (isAnimating) return;
     setSelectedCells([]);
-  }, [selectedCells, grid, target]);
-
-  const handleClear = useCallback(() => setSelectedCells([]), []);
+  }, [isAnimating]);
 
   const selectedTotal = selectedCells.reduce((sum, { row, col }) => {
     const val = grid[row]?.[col];
@@ -137,17 +174,23 @@ export default function GameScreen() {
           fallingBlock={fallingBlock}
           selectedCells={selectedCells}
           onCellPress={handleCellPress}
+          explodingCells={explodingCells}
+          fallingOffsets={fallingOffsets}
         />
       </View>
 
       <View style={styles.buttonRow}>
-        <TouchableOpacity style={styles.clearBtn} onPress={handleClear}>
+        <TouchableOpacity
+          style={styles.clearBtn}
+          onPress={handleClear}
+          disabled={isAnimating}
+        >
           <Text style={styles.btnText}>TEMİZLE</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.confirmBtn, selectedCells.length < 2 && styles.disabled]}
+          style={[styles.confirmBtn, (selectedCells.length < 2 || isAnimating) && styles.disabled]}
           onPress={handleConfirm}
-          disabled={selectedCells.length < 2}
+          disabled={selectedCells.length < 2 || isAnimating}
         >
           <Text style={styles.btnText}>ONAYLA</Text>
         </TouchableOpacity>
