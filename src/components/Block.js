@@ -34,7 +34,7 @@ export default function Block({ value, size, onPress, selected, selectionOrder, 
       explosionScale.setValue(1);
       explosionOpacity.setValue(1);
     }
-  }, [exploding]);
+  }, [exploding, explosionScale, explosionOpacity]);
 
   // Transform dizisi: önce düşme (fallAnim), sonra patlama ölçeği
   const transforms = [];

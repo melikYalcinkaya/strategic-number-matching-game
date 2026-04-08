@@ -37,11 +37,18 @@ export function isAdjacentToSelection(row, col, selectedCells) {
 export function applyGravity(grid) {
   const rows = grid.length;
   const cols = grid[0].length;
-  const next = Array.from({ length: rows }, () => Array(cols).fill(null)); //boş grid
+  const next = Array.from({ length: rows }, () => Array(cols).fill(null)); // boş grid
   for (let col = 0; col < cols; col++) {
-    const values = grid.flatMap((row) => row[col] !== null ? [row[col]] : []); //null değilse al
+    // Bu şekilde `flatMap` ile her kolonda ara array üretmekten kaçınırız.
+    const values = [];
+    for (let row = 0; row < rows; row++) {
+      const cell = grid[row][col];
+      if (cell !== null) values.push(cell);
+    }
+
+    const startRow = rows - values.length;
     for (let i = 0; i < values.length; i++) {
-      next[rows - values.length + i][col] = values[i]; //aldıklarını aşağıya yerleştir
+      next[startRow + i][col] = values[i]; // aldıklarını aşağıya yerleştir
     }
   }
   return next;
@@ -77,7 +84,7 @@ export function computeFallingOffsets(preGrid, postGrid) {
 }
 
 //Oyun bitti mi kontrolü
-// İlk satır doluysa veya wrongCount >= 3 ise game over
+// İlk satır doluysa game over
 export function isGameOver(grid) {
   return grid[0].some(cell => cell !== null);
 }

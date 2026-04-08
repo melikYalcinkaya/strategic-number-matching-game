@@ -59,7 +59,7 @@ export default function GameOverScreen({ onRestart }) {
     );
     const timeout = setTimeout(() => pulse.start(), 800);
     return () => { clearTimeout(timeout); pulse.stop(); };
-  }, []);
+  }, [fadeAnim, slideAnim, scaleAnim, pulseAnim]);
 
   return (
     <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>

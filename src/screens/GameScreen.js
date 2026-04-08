@@ -33,12 +33,12 @@ export default function GameScreen() {
   // Yanlış hak dolunca oyunu bitir
   useEffect(() => {
     if (wrongCount >= MAX_WRONG && !gameOver) setGameOver(true);
-  }, [wrongCount]);
+  }, [wrongCount, gameOver]);
 
   // Grid'in ilk satırı dolunca oyunu bitir
   useEffect(() => {
     if (!gameOver && isGameOver(grid)) setGameOver(true);
-  }, [grid]);
+  }, [grid, gameOver]);
 
   // Mesajı 2 saniye sonra temizle
   useEffect(() => {
