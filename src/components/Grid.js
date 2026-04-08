@@ -4,8 +4,8 @@ import Block from './Block';
 import { GRID_COLS, GRID_ROWS, CELL_GAP } from '../utils/constants';
 
 // Grid: oyun tahtasını çizer.
-// explodingCells : Set<"satır-sütun"> — patlamakta olan hücreler
-// fallingOffsets : Map<"yeniSatır-sütun", satırSayısı> — düşme mesafeleri
+// explodingCells : "satır-sütun" patlamakta olan hücreler
+// fallingOffsets : "yeniSatır-sütun", satırSayısı — düşme mesafeleri
 export default function Grid({ grid, fallingBlock, selectedCells = [], onCellPress, explodingCells, fallingOffsets }) {
   const { width, height } = useWindowDimensions();
 
@@ -19,10 +19,10 @@ export default function Grid({ grid, fallingBlock, selectedCells = [], onCellPre
   const gridWidth  = cellSize * GRID_COLS + CELL_GAP * (GRID_COLS - 1);
   const gridHeight = cellSize * GRID_ROWS + CELL_GAP * (GRID_ROWS - 1);
 
-  // Hızlı seçim sorgusu: "satır-sütun" → sıra numarası (1'den başlar)
+  // Hızlı seçim sorgusu: "satır-sütun"  sıra numarası (1'den başlar)
   const selectionMap = new Map(selectedCells.map((c, i) => [`${c.row}-${c.col}`, i + 1]));
 
-  // Yerçekimi animasyon değerlerini tut: "satır-sütun" → Animated.Value (translateY)
+  // Yerçekimi animasyon değerlerini tutar "satır-sütun"
   const fallAnimsRef = useRef(new Map());
 
   useEffect(() => {

@@ -40,7 +40,7 @@ export default function GameOverScreen({ onRestart }) {
       }),
     ]).start();
 
-    // Butonu sürekli nabız gibi büyüt-küçült
+    // Butonu sürekli büyüt-küçült
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
@@ -87,6 +87,7 @@ export default function GameOverScreen({ onRestart }) {
   );
 }
 
+//stiller
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,

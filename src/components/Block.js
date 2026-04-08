@@ -2,9 +2,9 @@ import React, { useEffect, useRef } from 'react';
 import { Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { NUMBER_COLORS } from '../utils/constants';
 
-// Block: tek bir ızgara hücresi.
-// exploding=true → scale+opacity 1→0 animasyonu (200ms)
-// fallAnim     → Animated.Value, yerçekimi translateY animasyonu için Grid'den gelir
+// Block: tek bir ızgara hücresini temsil eder
+// exploding=true → scale+opacity 1→0 animasyonu 200ms içinde kaybolur böylece
+// fallAnim     → yerçekimi translateY animasyonu için Grid'den gelir
 export default function Block({ value, size, onPress, selected, selectionOrder, exploding, fallAnim }) {
   const bgColor = NUMBER_COLORS[value];
 
@@ -51,7 +51,7 @@ export default function Block({ value, size, onPress, selected, selectionOrder, 
       <TouchableOpacity
         onPress={onPress}
         activeOpacity={0.75}
-        disabled={exploding} // patlama sırasında dokunulamaz
+        disabled={exploding} // patlama sırasında seçim yasak
         style={[
           styles.block,
           { width: size, height: size, backgroundColor: bgColor, borderRadius: 6 },
@@ -67,6 +67,7 @@ export default function Block({ value, size, onPress, selected, selectionOrder, 
   );
 }
 
+// stiller
 const styles = StyleSheet.create({
   block: {
     justifyContent: 'center',

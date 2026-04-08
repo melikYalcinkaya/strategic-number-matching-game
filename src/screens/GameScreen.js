@@ -9,20 +9,21 @@ import {
 } from '../utils/gameLogic';
 import { COLORS, GRID_ROWS, GRID_COLS } from '../utils/constants';
 
-const SPAWN_INTERVAL   = 5000; // yeni blok düşmeden önceki bekleme (ms)
+const SPAWN_INTERVAL   = 5000; // yeni blok düşmeden öncekini bekleme (ms)
 const FALL_STEP        = 250;  // bloğun her satır için düşme süresi (ms)
 const EXPLODE_DURATION = 220;  // patlama animasyonu süresi (ms)
 const GRAVITY_DURATION = 350;  // yerçekimi animasyonu süresi (ms)
 const MAX_WRONG        = 3;    // maksimum yanlış hakkı
 
 export default function GameScreen() {
-  const [grid, setGrid]                   = useState(() => createInitialGrid());
-  const [target, setTarget]               = useState(() => randomTarget());
-  const [fallingBlock, setFallingBlock]   = useState(null);
-  const [selectedCells, setSelectedCells] = useState([]);
-  const [wrongCount, setWrongCount]       = useState(0);
-  const [message, setMessage]             = useState(null);
-  const [gameOver, setGameOver]           = useState(false);
+  // Temel oyun state'leri
+  const [grid, setGrid]                   = useState(() => createInitialGrid()); // Oyun alanı matrisimiz
+  const [target, setTarget]               = useState(() => randomTarget());      // Hedef
+  const [fallingBlock, setFallingBlock]   = useState(null);                      // Düşmekte olan blok
+  const [selectedCells, setSelectedCells] = useState([]);                        // Oyuncunun seçtiği hücreler
+  const [wrongCount, setWrongCount]       = useState(0)                          // Yanlış hamle sayacı
+  const [message, setMessage]             = useState(null);                       // Ekrana gösterilecek mesaj
+  const [gameOver, setGameOver]           = useState(false);                     // GameOver durumu
 
   // Animasyon state'leri
   const [isAnimating, setIsAnimating]       = useState(false);
@@ -46,7 +47,7 @@ export default function GameScreen() {
     return () => clearTimeout(t);
   }, [message]);
 
-  // Önceki blok yerleştikten SPAWN_INTERVAL ms sonra yeni blok düşür
+  // Önceki blok yerleştikten SPAWN_INTERVAL(5000) ms sonra yeni blok düşür
   useEffect(() => {
     if (fallingBlock !== null || gameOver) return;
     const t = setTimeout(() => {
@@ -225,6 +226,7 @@ export default function GameScreen() {
   );
 }
 
+//stiller
 const styles = StyleSheet.create({
   container: {
     flex: 1,

@@ -1,5 +1,6 @@
 import { GRID_COLS, GRID_ROWS } from './constants';
 
+// Başlangıç grid'i oluşturma
 export function createInitialGrid() {
   const grid = [];
   for (let row = 0; row < GRID_ROWS; row++) {
@@ -12,10 +13,12 @@ export function createInitialGrid() {
   return grid;
 }
 
+// Rastgele sayı üretme 1 ile 9 arasında
 export function randomNumber() {
   return Math.floor(Math.random() * 9) + 1;
 }
 
+// Random hedef üretme 5 ile 20 arasında
 export function randomTarget() {
   return Math.floor(Math.random() * 16) + 5;
 }
@@ -30,22 +33,22 @@ export function isAdjacentToSelection(row, col, selectedCells) {
   return selectedCells.some(c => isNeighbor(row, col, c.row, c.col));
 }
 
-// Her sütunda null olmayan değerleri alta toplar, üstü null bırakır
+// Her sütunda null olmayan değerleri alta toplar, üstü null bırakırız
 export function applyGravity(grid) {
   const rows = grid.length;
   const cols = grid[0].length;
-  const next = Array.from({ length: rows }, () => Array(cols).fill(null));
+  const next = Array.from({ length: rows }, () => Array(cols).fill(null)); //boş grid
   for (let col = 0; col < cols; col++) {
-    const values = grid.flatMap((row) => row[col] !== null ? [row[col]] : []);
+    const values = grid.flatMap((row) => row[col] !== null ? [row[col]] : []); //null değilse al
     for (let i = 0; i < values.length; i++) {
-      next[rows - values.length + i][col] = values[i];
+      next[rows - values.length + i][col] = values[i]; //aldıklarını aşağıya yerleştir
     }
   }
   return next;
 }
 
 // Yerçekimi öncesi ve sonrası grid karşılaştırarak her bloğun kaç satır düştüğünü hesaplar.
-// Döndürülen Map: "yeniSatır-sütun" → düşülen satır sayısı
+// Döndürülen Map: "yeniSatır-sütun" düşülen satır sayısı
 export function computeFallingOffsets(preGrid, postGrid) {
   const rows = preGrid.length;
   const cols = preGrid[0].length;
@@ -73,11 +76,8 @@ export function computeFallingOffsets(preGrid, postGrid) {
   return offsets;
 }
 
-/**
- * Oyun bitti mi kontrolü:
- * İlk satırda (row=0) herhangi bir hücre doluysa → game over.
- * Ayrıca wrongCount >= 3 ise de game over (bu kontrolü GameScreen'de yönetiyoruz).
- */
+//Oyun bitti mi kontrolü
+// İlk satır doluysa veya wrongCount >= 3 ise game over
 export function isGameOver(grid) {
   return grid[0].some(cell => cell !== null);
 }
