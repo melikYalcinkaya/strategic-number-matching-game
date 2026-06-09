@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
-import { NUMBER_COLORS } from '../utils/constants';
+import { Text, StyleSheet, TouchableOpacity, Animated, Platform } from 'react-native';
+import { NUMBER_COLORS, IS_IOS, platformShadow } from '../utils/constants';
 
 // Block: tek bir ızgara hücresini temsil eder
 // exploding=true → scale+opacity 1→0 animasyonu 200ms içinde kaybolur böylece
@@ -41,29 +41,35 @@ export default function Block({ value, size, onPress, selected, selectionOrder, 
   if (fallAnim) transforms.push({ translateY: fallAnim });
   if (exploding) transforms.push({ scale: explosionScale });
 
+  const blockStyle = [
+    styles.block,
+    {
+      width: size,
+      height: size,
+      backgroundColor: bgColor,
+      borderRadius: IS_IOS ? 8 : 6,
+    },
+    IS_IOS && platformShadow('#000', { opacity: 0.18, radius: 4, offsetY: 2, elevation: 2 }),
+    selected && !exploding && styles.selected,
+    selected && !exploding && IS_IOS && platformShadow('#fff', { opacity: 0.35, radius: 8, offsetY: 0, elevation: 0 }),
+    transforms.length > 0 && { transform: transforms },
+    { opacity: exploding ? explosionOpacity : 1 },
+  ];
+
   return (
-    <Animated.View
-      style={[
-        transforms.length > 0 && { transform: transforms },
-        { opacity: exploding ? explosionOpacity : 1 },
-      ]}
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.7}
+      disabled={exploding}
+      hitSlop={IS_IOS ? { top: 4, bottom: 4, left: 4, right: 4 } : undefined}
     >
-      <TouchableOpacity
-        onPress={onPress}
-        activeOpacity={0.75}
-        disabled={exploding} // patlama sırasında seçim yasak
-        style={[
-          styles.block,
-          { width: size, height: size, backgroundColor: bgColor, borderRadius: 6 },
-          selected && !exploding && styles.selected,
-        ]}
-      >
-        <Text style={[styles.number, { fontSize: size * 0.38 }]}>{value}</Text>
+      <Animated.View style={blockStyle}>
+        <Text style={[styles.number, { fontSize: size * (IS_IOS ? 0.36 : 0.38) }]}>{value}</Text>
         {selected && !exploding && selectionOrder != null && (
           <Text style={[styles.order, { fontSize: size * 0.22 }]}>{selectionOrder}</Text>
         )}
-      </TouchableOpacity>
-    </Animated.View>
+      </Animated.View>
+    </TouchableOpacity>
   );
 }
 
@@ -72,21 +78,26 @@ const styles = StyleSheet.create({
   block: {
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
   selected: {
-    borderWidth: 3,
+    borderWidth: IS_IOS ? 2.5 : 3,
     borderColor: 'white',
-    transform: [{ scale: 1.06 }],
+    transform: [{ scale: IS_IOS ? 1.05 : 1.06 }],
   },
   number: {
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#1a1a2e',
+    ...Platform.select({
+      ios: { fontVariant: ['tabular-nums'] },
+      default: {},
+    }),
   },
   order: {
     position: 'absolute',
-    top: 2,
-    right: 3,
-    fontWeight: 'bold',
+    top: IS_IOS ? 3 : 2,
+    right: IS_IOS ? 4 : 3,
+    fontWeight: '700',
     color: 'white',
   },
 });

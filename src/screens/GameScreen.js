@@ -1,63 +1,56 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Grid from '../components/Grid';
 import GameOverScreen from '../screens/GameOverScreen';
 import {
   createInitialGrid, randomTarget, randomNumber,
   isAdjacentToSelection, applyGravity, computeFallingOffsets, isGameOver,
+  calculateMoveScore, getSpawnInterval, getSpawnIntervalSeconds, applyPenalty,
 } from '../utils/gameLogic';
-import { COLORS, GRID_ROWS, GRID_COLS } from '../utils/constants';
+import { COLORS, GRID_ROWS, GRID_COLS, IS_IOS, platformShadow } from '../utils/constants';
 
-const SPAWN_INTERVAL   = 5000; // yeni blok düşmeden öncekini bekleme (ms)
-const FALL_STEP        = 250;  // bloğun her satır için düşme süresi (ms)
-const EXPLODE_DURATION = 220;  // patlama animasyonu süresi (ms)
-const GRAVITY_DURATION = 350;  // yerçekimi animasyonu süresi (ms)
-const MAX_WRONG        = 3;    // maksimum yanlış hakkı
+const FALL_STEP        = 250;
+const EXPLODE_DURATION = 220;
+const GRAVITY_DURATION = 350;
+const MAX_WRONG        = 3;
 
 export default function GameScreen() {
-  // Temel oyun state'leri
-  const [grid, setGrid]                   = useState(() => createInitialGrid()); // Oyun alanı matrisimiz
-  const [target, setTarget]               = useState(() => randomTarget());      // Hedef
-  const [fallingBlock, setFallingBlock]   = useState(null);                      // Düşmekte olan blok
-  const [selectedCells, setSelectedCells] = useState([]);                        // Oyuncunun seçtiği hücreler
-  const [wrongCount, setWrongCount]       = useState(0)                          // Yanlış hamle sayacı
-  const [message, setMessage]             = useState(null);                       // Ekrana gösterilecek mesaj
-  const [gameOver, setGameOver]           = useState(false);                     // GameOver durumu
+  const insets = useSafeAreaInsets();
+  const [gridLayout, setGridLayout] = useState(null);
 
-  // Animasyon state'leri
+  const [grid, setGrid]                   = useState(() => createInitialGrid());
+  const [target, setTarget]               = useState(() => randomTarget());
+  const [fallingBlock, setFallingBlock]   = useState(null);
+  const [selectedCells, setSelectedCells] = useState([]);
+  const [wrongCount, setWrongCount]       = useState(0);
+  const [score, setScore]                 = useState(0);
+  const [message, setMessage]             = useState(null);
+  const [gameOver, setGameOver]           = useState(false);
+
   const [isAnimating, setIsAnimating]       = useState(false);
   const [explodingCells, setExplodingCells] = useState(new Set());
   const [fallingOffsets, setFallingOffsets] = useState(new Map());
 
-  // Yanlış hak dolunca oyunu bitir
-  useEffect(() => {
-    if (wrongCount >= MAX_WRONG && !gameOver) setGameOver(true);
-  }, [wrongCount, gameOver]);
-
-  // Grid'in ilk satırı dolunca oyunu bitir
   useEffect(() => {
     if (!gameOver && isGameOver(grid)) setGameOver(true);
   }, [grid, gameOver]);
 
-  // Mesajı 2 saniye sonra temizle
   useEffect(() => {
     if (!message) return;
     const t = setTimeout(() => setMessage(null), 2000);
     return () => clearTimeout(t);
   }, [message]);
 
-  // Önceki blok yerleştikten SPAWN_INTERVAL(5000) ms sonra yeni blok düşür
   useEffect(() => {
     if (fallingBlock !== null || gameOver) return;
     const t = setTimeout(() => {
       const col = Math.floor(Math.random() * GRID_COLS);
       setFallingBlock({ col, row: 0, value: randomNumber() });
-    }, SPAWN_INTERVAL);
+    }, getSpawnInterval(score));
     return () => clearTimeout(t);
-  }, [fallingBlock, gameOver]);
+  }, [fallingBlock, gameOver, score]);
 
-  // Bloğu her FALL_STEP ms'de bir satır aşağı taşı
   useEffect(() => {
     if (fallingBlock === null || gameOver) return;
     const { col, row, value } = fallingBlock;
@@ -65,7 +58,6 @@ export default function GameScreen() {
       const nextRow = row + 1;
       const blocked = nextRow >= GRID_ROWS || grid[nextRow][col] !== null;
       if (blocked) {
-        // Blok bir yere oturdu, grid'e işle
         setGrid(prev => {
           const next = prev.map(r => [...r]);
           next[row][col] = value;
@@ -79,13 +71,11 @@ export default function GameScreen() {
     return () => clearTimeout(t);
   }, [fallingBlock, grid, gameOver]);
 
-  // Hücreye dokunulduğunda seçim yönetimi
   const handleCellPress = useCallback((row, col) => {
     if (isAnimating || gameOver || grid[row][col] === null) return;
 
     const existingIdx = selectedCells.findIndex(c => c.row === row && c.col === col);
     if (existingIdx !== -1) {
-      // Sadece zincirin sonundaki bloğu çıkar
       if (existingIdx === selectedCells.length - 1) {
         setSelectedCells(prev => prev.slice(0, -1));
       }
@@ -100,24 +90,23 @@ export default function GameScreen() {
     setSelectedCells(prev => [...prev, { row, col }]);
   }, [grid, selectedCells, isAnimating, gameOver]);
 
-  // Seçimi onayla: doğruysa patlama + yerçekimi animasyonu, yanlışsa hak azalt
   const handleConfirm = useCallback(() => {
     if (selectedCells.length < 2 || isAnimating || gameOver) return;
 
     const total = selectedCells.reduce((sum, { row, col }) => sum + grid[row][col], 0);
 
     if (total === target) {
+      const moveScore = calculateMoveScore(grid, selectedCells);
+      setScore(prev => prev + moveScore);
       setIsAnimating(true);
       setMessage('Doğru! ✓');
 
       const cellsToExplode = [...selectedCells];
       setSelectedCells([]);
 
-      // 1. Patlama animasyonunu başlat
       const explodingSet = new Set(cellsToExplode.map(({ row, col }) => `${row}-${col}`));
       setExplodingCells(explodingSet);
 
-      // 2. Patlama bitince yerçekimini uygula
       setTimeout(() => {
         const preGravityGrid = grid.map(r => [...r]);
         cellsToExplode.forEach(({ row, col }) => { preGravityGrid[row][col] = null; });
@@ -130,7 +119,6 @@ export default function GameScreen() {
         setGrid(postGravityGrid);
         setTarget(randomTarget());
 
-        // 3. Yerçekimi animasyonu bitince temizle
         setTimeout(() => {
           setFallingOffsets(new Map());
           setIsAnimating(false);
@@ -139,25 +127,37 @@ export default function GameScreen() {
 
     } else {
       const newWrong = wrongCount + 1;
-      setWrongCount(newWrong);
-      setMessage(newWrong >= MAX_WRONG ? 'Yanlış! Oyun bitti ✗' : 'Yanlış! ✗');
       setSelectedCells([]);
+
+      if (newWrong >= MAX_WRONG) {
+        setIsAnimating(true);
+        setFallingBlock(null);
+        setMessage('Ceza! Tüm sütunlardan blok indi!');
+        setWrongCount(0);
+
+        const penalizedGrid = applyPenalty(grid);
+        setGrid(penalizedGrid);
+
+        setTimeout(() => setIsAnimating(false), 300);
+      } else {
+        setWrongCount(newWrong);
+        setMessage('Yanlış! ✗');
+      }
     }
   }, [selectedCells, grid, target, isAnimating, gameOver, wrongCount]);
 
-  // Seçimi temizle
   const handleClear = useCallback(() => {
     if (isAnimating) return;
     setSelectedCells([]);
   }, [isAnimating]);
 
-  // Oyunu sıfırla
   const handleRestart = useCallback(() => {
     setGrid(createInitialGrid());
     setTarget(randomTarget());
     setFallingBlock(null);
     setSelectedCells([]);
     setWrongCount(0);
+    setScore(0);
     setMessage(null);
     setGameOver(false);
     setIsAnimating(false);
@@ -170,39 +170,56 @@ export default function GameScreen() {
     return val != null ? sum + val : sum;
   }, 0);
 
+  const spawnSeconds = getSpawnIntervalSeconds(score);
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Text style={styles.targetText}>Hedef: {target}</Text>
+        <Text style={styles.scoreText}>Puan: {score}</Text>
         <Text style={styles.wrongText}>Yanlış: {wrongCount}/{MAX_WRONG}</Text>
       </View>
+
+      <Text style={styles.spawnText}>Düşme süresi: {spawnSeconds}s</Text>
 
       {selectedCells.length > 0 && (
         <Text style={styles.totalText}>Toplam: {selectedTotal} / Hedef: {target}</Text>
       )}
 
       {message != null && (
-        <Text style={[styles.message, { color: message.startsWith('Doğru') ? '#a8e6cf' : '#ff6b6b' }]}>
+        <Text style={[styles.message, {
+          color: message.startsWith('Doğru') ? '#a8e6cf'
+            : message.startsWith('Ceza') ? '#ffeaa7'
+            : '#ff6b6b',
+        }]}>
           {message}
         </Text>
       )}
 
-      <View style={styles.gridContainer}>
-        <Grid
-          grid={grid}
-          fallingBlock={fallingBlock}
-          selectedCells={selectedCells}
-          onCellPress={handleCellPress}
-          explodingCells={explodingCells}
-          fallingOffsets={fallingOffsets}
-        />
+      <View
+        style={styles.gridContainer}
+        onLayout={(e) => setGridLayout(e.nativeEvent.layout)}
+      >
+        {gridLayout && (
+          <Grid
+            grid={grid}
+            fallingBlock={fallingBlock}
+            selectedCells={selectedCells}
+            onCellPress={handleCellPress}
+            explodingCells={explodingCells}
+            fallingOffsets={fallingOffsets}
+            containerWidth={gridLayout.width}
+            containerHeight={gridLayout.height}
+          />
+        )}
       </View>
 
-      <View style={styles.buttonRow}>
+      <View style={[styles.buttonRow, { paddingBottom: Math.max(insets.bottom, IS_IOS ? 8 : 12) }]}>
         <TouchableOpacity
           style={styles.clearBtn}
           onPress={handleClear}
           disabled={isAnimating || gameOver}
+          activeOpacity={0.7}
         >
           <Text style={styles.btnText}>TEMİZLE</Text>
         </TouchableOpacity>
@@ -213,20 +230,19 @@ export default function GameScreen() {
           ]}
           onPress={handleConfirm}
           disabled={selectedCells.length < 2 || isAnimating || gameOver}
+          activeOpacity={0.7}
         >
           <Text style={styles.btnText}>ONAYLA</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Oyun bitince overlay olarak göster */}
       {gameOver && (
-        <GameOverScreen onRestart={handleRestart} />
+        <GameOverScreen score={score} onRestart={handleRestart} />
       )}
     </SafeAreaView>
   );
 }
 
-//stiller
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -236,61 +252,85 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     width: '100%',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    paddingHorizontal: IS_IOS ? 16 : 20,
+    paddingVertical: IS_IOS ? 10 : 12,
   },
   targetText: {
     color: COLORS.text,
-    fontSize: 20,
-    fontWeight: 'bold',
-    letterSpacing: 1,
+    fontSize: IS_IOS ? 18 : 17,
+    fontWeight: '700',
+    letterSpacing: IS_IOS ? 0.5 : 1,
+  },
+  scoreText: {
+    color: COLORS.scoreText,
+    fontSize: IS_IOS ? 18 : 17,
+    fontWeight: '700',
   },
   wrongText: {
     color: '#ff6b6b',
-    fontSize: 18,
+    fontSize: IS_IOS ? 16 : 17,
     fontWeight: '600',
+  },
+  spawnText: {
+    color: '#a8e6cf',
+    fontSize: IS_IOS ? 14 : 13,
+    fontWeight: '600',
+    marginBottom: 2,
   },
   totalText: {
     color: '#ffeaa7',
-    fontSize: 15,
+    fontSize: IS_IOS ? 16 : 15,
     fontWeight: '600',
     marginBottom: 2,
   },
   message: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: IS_IOS ? 17 : 18,
+    fontWeight: '700',
     marginBottom: 2,
   },
   gridContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    width: '100%',
   },
   buttonRow: {
     flexDirection: 'row',
-    gap: 12,
-    paddingVertical: 12,
+    gap: IS_IOS ? 14 : 12,
+    paddingTop: IS_IOS ? 10 : 12,
+    paddingHorizontal: IS_IOS ? 20 : 0,
   },
   clearBtn: {
     backgroundColor: '#4a4a6a',
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: IS_IOS ? 32 : 28,
+    paddingVertical: IS_IOS ? 14 : 12,
+    borderRadius: IS_IOS ? 12 : 8,
+    minHeight: IS_IOS ? 48 : undefined,
+    justifyContent: 'center',
+    ...platformShadow('#000', { opacity: 0.2, radius: 6, offsetY: 2, elevation: 3 }),
   },
   confirmBtn: {
     backgroundColor: '#6c5ce7',
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: IS_IOS ? 32 : 28,
+    paddingVertical: IS_IOS ? 14 : 12,
+    borderRadius: IS_IOS ? 12 : 8,
+    minHeight: IS_IOS ? 48 : undefined,
+    justifyContent: 'center',
+    ...platformShadow('#6c5ce7', { opacity: 0.4, radius: 10, offsetY: 4, elevation: 5 }),
   },
   disabled: {
-    opacity: 0.35,
+    opacity: IS_IOS ? 0.4 : 0.35,
   },
   btnText: {
     color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 15,
-    letterSpacing: 1,
+    fontWeight: '700',
+    fontSize: IS_IOS ? 16 : 15,
+    letterSpacing: IS_IOS ? 0.8 : 1,
+    ...Platform.select({
+      ios: { fontVariant: ['tabular-nums'] },
+      default: {},
+    }),
   },
 });

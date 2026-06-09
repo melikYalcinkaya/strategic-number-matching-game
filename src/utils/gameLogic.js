@@ -1,4 +1,4 @@
-import { GRID_COLS, GRID_ROWS } from './constants';
+import { GRID_COLS, GRID_ROWS, NUMBER_POINTS } from './constants';
 
 // Başlangıç grid'i oluşturma
 export function createInitialGrid() {
@@ -83,8 +83,54 @@ export function computeFallingOffsets(preGrid, postGrid) {
   return offsets;
 }
 
-//Oyun bitti mi kontrolü
-// İlk satır doluysa game over
+export function isColumnFull(grid, col) {
+  return grid.every(row => row[col] !== null);
+}
+
+// Herhangi bir sütun 10 satıra kadar tamamen dolunca oyun biter
 export function isGameOver(grid) {
-  return grid[0].some(cell => cell !== null);
+  for (let col = 0; col < GRID_COLS; col++) {
+    if (isColumnFull(grid, col)) return true;
+  }
+  return false;
+}
+
+export function calculateMoveScore(grid, selectedCells) {
+  return selectedCells.reduce((sum, { row, col }) => {
+    const value = grid[row][col];
+    return sum + (NUMBER_POINTS[value] ?? 0);
+  }, 0);
+}
+
+export function getSpawnInterval(score) {
+  const seconds = Math.max(1, 5 - Math.floor(score / 100));
+  return seconds * 1000;
+}
+
+export function getSpawnIntervalSeconds(score) {
+  return Math.max(1, 5 - Math.floor(score / 100));
+}
+
+// 3 yanlış hamlede tüm sütunlardan birer blok indir
+export function applyPenalty(grid) {
+  const next = grid.map(r => [...r]);
+
+  for (let col = 0; col < GRID_COLS; col++) {
+    const values = [];
+    for (let row = 0; row < GRID_ROWS; row++) {
+      if (next[row][col] !== null) values.push(next[row][col]);
+    }
+    if (values.length >= GRID_ROWS) continue;
+
+    values.unshift(randomNumber());
+    for (let row = 0; row < GRID_ROWS; row++) {
+      next[row][col] = null;
+    }
+    const startRow = GRID_ROWS - values.length;
+    for (let i = 0; i < values.length; i++) {
+      next[startRow + i][col] = values[i];
+    }
+  }
+
+  return next;
 }
